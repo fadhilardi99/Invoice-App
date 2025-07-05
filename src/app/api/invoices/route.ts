@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 
+// Force dynamic rendering for this API route
+export const dynamic = "force-dynamic";
+
 const prisma = new PrismaClient();
 
 // Helper function to check if invoice is overdue

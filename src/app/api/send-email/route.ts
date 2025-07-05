@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import sgMail from "@sendgrid/mail";
 import { Invoice, InvoiceItem } from "@/types/invoice";
 
+// Force dynamic rendering for this API route
+export const dynamic = "force-dynamic";
+
 // Initialize SendGrid with API key
 if (process.env.SENDGRID_API_KEY) {
   sgMail.setApiKey(process.env.SENDGRID_API_KEY);
