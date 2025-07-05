@@ -1,5 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { PrismaClient } from "@prisma/client";
+
+const prisma = new PrismaClient();
+
+// Helper function to check if invoice is overdue
+const checkInvoiceStatus = (dueDate: string, currentStatus: string) => {
+  const today = new Date();
+  const due = new Date(dueDate);
+
+  if (currentStatus === "paid") return "paid";
+  if (today > due) return "overdue";
+  return "unpaid";
+};
 
 export async function POST(req: NextRequest) {
   try {
@@ -95,9 +107,35 @@ export async function GET() {
       },
     });
 
-    return NextResponse.json({ success: true, invoices });
-  } catch (e) {
-    console.error("Error fetching invoices:", e);
+    // Update status based on due date
+    const updatedInvoices = await Promise.all(
+      invoices.map(async (invoice) => {
+        const newStatus = checkInvoiceStatus(
+          invoice.client.dueDate.toISOString().split("T")[0],
+          invoice.status
+        );
+
+        // Update status in database if it changed
+        if (newStatus !== invoice.status) {
+          await prisma.invoice.update({
+            where: { id: invoice.id },
+            data: { status: newStatus },
+          });
+        }
+
+        return {
+          ...invoice,
+          status: newStatus,
+        };
+      })
+    );
+
+    return NextResponse.json({
+      success: true,
+      invoices: updatedInvoices,
+    });
+  } catch (error) {
+    console.error("Error fetching invoices:", error);
     return NextResponse.json(
       { success: false, error: "Failed to fetch invoices" },
       { status: 500 }

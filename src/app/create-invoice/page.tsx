@@ -67,19 +67,19 @@ export default function CreateInvoicePage() {
         });
         const data = await res.json();
         if (data.success) {
-          setNotif("Invoice created successfully!");
+          setNotif("✅ Invoice created successfully!");
           setTimeout(() => {
             router.push("/");
-          }, 1200);
+          }, 1500);
         } else {
           console.error("API Error:", data);
           setNotif(
-            `Failed to create invoice: ${data.error || "Unknown error"}`
+            `❌ Failed to create invoice: ${data.error || "Unknown error"}`
           );
         }
       } catch (error) {
         console.error("Network Error:", error);
-        setNotif("Failed to create invoice: Network error");
+        setNotif("❌ Failed to create invoice: Network error");
       } finally {
         setLoading(false);
       }
@@ -100,102 +100,140 @@ export default function CreateInvoicePage() {
   }, [submitted, validate]);
 
   return (
-    <div className="min-h-screen bg-gray-50 py-10 px-2 sm:px-4 flex flex-col items-center font-sans">
-      {/* Back Button */}
-      <div className="w-full max-w-4xl mb-4 px-1 sm:px-0">
-        <Link
-          href="/"
-          className="inline-flex items-center gap-2 text-gray-600 hover:text-blue-700 font-medium"
-        >
-          <span className="text-xl">←</span> Back to Dashboard
-        </Link>
-      </div>
-      {/* Header */}
-      <div className="flex flex-col items-center mb-8 px-2 sm:px-0">
-        <div className="bg-blue-600 rounded-full p-4 mb-4">
-          <span className="text-white text-3xl">📄</span>
-        </div>
-        <h1 className="text-3xl font-bold text-center mb-2 text-blue-900">
-          Create New Invoice
-        </h1>
-        <p className="text-gray-600 text-center max-w-xl mb-4">
-          Fill in the details to generate your invoice
-        </p>
-      </div>
-      <form className="w-full" onSubmit={handleSubmit}>
-        {/* Notif */}
-        {notif && (
-          <div
-            className={`w-full max-w-4xl mb-4 text-center rounded py-2 font-semibold ${
-              notif.includes("success")
-                ? "bg-green-100 text-green-700"
-                : "bg-red-100 text-red-700"
-            }`}
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-50 py-8">
+      <div className="container mx-auto">
+        {/* Back Button */}
+        <div className="w-full max-w-6xl mx-auto px-4 mb-6">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-3 text-gray-600 hover:text-blue-700 font-medium transition-colors duration-300"
           >
-            {notif}
+            <span className="text-2xl">←</span>
+            <span>Back to Dashboard</span>
+          </Link>
+        </div>
+
+        {/* Header */}
+        <div className="w-full max-w-6xl mx-auto px-4 mb-8">
+          <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl border border-white/20 p-8 text-center">
+            <div className="relative mb-6">
+              <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg mx-auto">
+                <span className="text-white text-3xl">📄</span>
+              </div>
+              <div className="absolute -top-2 -right-2 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                <span className="text-white text-xs">+</span>
+              </div>
+            </div>
+            <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-4">
+              Create New Invoice
+            </h1>
+            <p className="text-gray-600 text-lg max-w-2xl mx-auto leading-relaxed">
+              Fill in the details below to generate your professional invoice
+            </p>
           </div>
-        )}
-        {/* Client Info Form */}
-        <div className="w-full max-w-4xl mb-6 px-1 sm:px-0 mx-auto">
-          <ClientInfoForm value={clientInfo} onChange={setClientInfo} />
-          {(errors.name || errors.email || errors.dueDate) && (
-            <div className="text-red-500 text-sm mt-1">
-              {[errors.name, errors.email, errors.dueDate]
-                .filter(Boolean)
-                .join(" | ")}
+        </div>
+
+        <form className="w-full max-w-6xl mx-auto px-4" onSubmit={handleSubmit}>
+          {/* Notification */}
+          {notif && (
+            <div className="mb-6">
+              <div
+                className={`rounded-2xl p-4 text-center font-semibold shadow-lg ${
+                  notif.includes("✅")
+                    ? "bg-green-100 text-green-700 border border-green-200"
+                    : "bg-red-100 text-red-700 border border-red-200"
+                }`}
+              >
+                {notif}
+              </div>
             </div>
           )}
-        </div>
-        {/* Invoice Items Form */}
-        <div className="w-full max-w-4xl mx-auto mb-6 px-1 sm:px-0">
-          <InvoiceItemsForm
-            items={invoiceItems}
-            onChange={setInvoiceItems}
-            onAddItem={handleAddItem}
-            onRemoveItem={handleRemoveItem}
-          />
-          {errors.items && (
-            <div className="text-red-500 text-sm mt-1">{errors.items}</div>
-          )}
-          {invoiceItems.map((item, idx) => (
-            <div key={idx} className="text-red-500 text-xs">
-              {[
-                errors[`item-name-${idx}`],
-                errors[`item-qty-${idx}`],
-                errors[`item-price-${idx}`],
-              ]
-                .filter(Boolean)
-                .join(" | ")}
+
+          {/* Client Info Form */}
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-6 mb-6">
+            <h2 className="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-3">
+              <span className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+                <span className="text-white text-sm">👤</span>
+              </span>
+              Client Information
+            </h2>
+            <ClientInfoForm value={clientInfo} onChange={setClientInfo} />
+            {(errors.name || errors.email || errors.dueDate) && (
+              <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
+                {[errors.name, errors.email, errors.dueDate]
+                  .filter(Boolean)
+                  .join(" • ")}
+              </div>
+            )}
+          </div>
+
+          {/* Invoice Items Form */}
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-6 mb-6">
+            <h2 className="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-3">
+              <span className="w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center">
+                <span className="text-white text-sm">📦</span>
+              </span>
+              Invoice Items
+            </h2>
+            <InvoiceItemsForm
+              items={invoiceItems}
+              onChange={setInvoiceItems}
+              onAddItem={handleAddItem}
+              onRemoveItem={handleRemoveItem}
+            />
+            {errors.items && (
+              <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
+                {errors.items}
+              </div>
+            )}
+            {invoiceItems.map((item, idx) => (
+              <div
+                key={idx}
+                className="mt-2 p-2 bg-red-50 border border-red-200 rounded-lg text-red-600 text-xs"
+              >
+                {[
+                  errors[`item-name-${idx}`],
+                  errors[`item-qty-${idx}`],
+                  errors[`item-price-${idx}`],
+                ]
+                  .filter(Boolean)
+                  .join(" • ")}
+              </div>
+            ))}
+          </div>
+
+          {/* Invoice Total Box */}
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-6 mb-8">
+            <div className="flex justify-end">
+              <InvoiceTotalBox total={invoiceTotal} />
             </div>
-          ))}
-        </div>
-        {/* Invoice Total Box */}
-        <div className="w-full max-w-4xl mx-auto flex justify-end mb-8 px-1 sm:px-0">
-          <InvoiceTotalBox total={invoiceTotal} />
-        </div>
-        {/* Action Buttons */}
-        <div className="w-full max-w-4xl mx-auto flex flex-col sm:flex-row justify-end gap-4 px-1 sm:px-0">
-          <button
-            type="button"
-            onClick={handleCancel}
-            className="px-6 py-2 rounded border border-gray-300 bg-white text-gray-700 font-semibold w-full sm:w-auto"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={!isValid || loading}
-            className={`px-6 py-2 rounded flex items-center gap-2 font-semibold w-full sm:w-auto ${
-              isValid && !loading
-                ? "bg-blue-600 hover:bg-blue-700 text-white"
-                : "bg-gray-300 text-gray-400 cursor-not-allowed"
-            }`}
-          >
-            <span className="text-lg">📄</span>{" "}
-            {loading ? "Saving..." : "Create Invoice"}
-          </button>
-        </div>
-      </form>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex flex-col sm:flex-row justify-end gap-4">
+            <button
+              type="button"
+              onClick={handleCancel}
+              className="px-8 py-4 rounded-2xl border-2 border-gray-300 bg-white text-gray-700 font-semibold hover:bg-gray-50 hover:border-gray-400 transition-all duration-300 transform hover:scale-105 shadow-lg"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={!isValid || loading}
+              className={`px-8 py-4 rounded-2xl font-semibold flex items-center gap-3 transition-all duration-300 transform hover:scale-105 shadow-lg ${
+                isValid && !loading
+                  ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:shadow-xl"
+                  : "bg-gray-300 text-gray-400 cursor-not-allowed"
+              }`}
+            >
+              <span className="text-xl">📄</span>
+              <span>{loading ? "Creating..." : "Create Invoice"}</span>
+              {!loading && isValid && <span className="text-sm">→</span>}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

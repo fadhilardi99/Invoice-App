@@ -5,21 +5,8 @@ import Link from "next/link";
 import toast from "react-hot-toast";
 import { Invoice, InvoiceItem, ClientInfo } from "@/types/invoice";
 import Spinner from "@/components/Spinner";
-
-// Type declaration for html2pdf
-declare global {
-  interface Window {
-    html2pdf: (
-      element: HTMLElement,
-      options?: {
-        margin?: number;
-        filename?: string;
-        html2canvas?: { scale?: number };
-        jsPDF?: { unit?: string; format?: string; orientation?: string };
-      }
-    ) => void;
-  }
-}
+import DueDateInfo from "@/components/DueDateInfo";
+import InvoiceContent from "@/components/InvoiceContent";
 
 // Helper function to format dates
 const formatDate = (dateString: string | Date | null | undefined): string => {
@@ -27,13 +14,10 @@ const formatDate = (dateString: string | Date | null | undefined): string => {
 
   try {
     const date = new Date(dateString);
-
-    // Check if date is valid
     if (isNaN(date.getTime())) {
       return "N/A";
     }
 
-    // Format as DD/MM/YYYY without time
     const day = date.getDate().toString().padStart(2, "0");
     const month = (date.getMonth() + 1).toString().padStart(2, "0");
     const year = date.getFullYear();
@@ -45,11 +29,10 @@ const formatDate = (dateString: string | Date | null | undefined): string => {
 
 // Helper function to format invoice number for display
 const formatInvoiceNumber = (invoiceId: string): string => {
-  // If it's already in the new format, extract the client name part
   if (invoiceId.startsWith("INVOICE-")) {
     const parts = invoiceId.split("-");
     if (parts.length >= 3) {
-      const clientName = parts.slice(1, -1).join("-"); // Get all parts except first and last
+      const clientName = parts.slice(1, -1).join("-");
       return `INVOICE - ${clientName}`;
     }
   }
@@ -59,6 +42,7 @@ const formatInvoiceNumber = (invoiceId: string): string => {
 export default function InvoiceDetailPage() {
   const { id } = useParams();
   const router = useRouter();
+  const decodedId = typeof id === "string" ? decodeURIComponent(id) : id;
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -98,24 +82,38 @@ export default function InvoiceDetailPage() {
 
   useEffect(() => {
     setLoading(true);
+    console.log("Fetching invoice with ID:", decodedId);
     fetch("/api/invoices")
       .then((res) => res.json())
       .then((data) => {
+        console.log("Fetched invoices:", data);
         if (data.success) {
-          const found = data.invoices.find((inv: Invoice) => inv.id === id);
+          const found = data.invoices.find(
+            (inv: Invoice) => inv.id === decodedId
+          );
+          console.log("Found invoice:", found);
           if (found) {
             setInvoice(found);
             setError(null);
           } else {
+            console.error("Invoice not found for ID:", decodedId);
+            console.log(
+              "Available invoices:",
+              data.invoices.map((inv: Invoice) => inv.id)
+            );
             setError("Invoice not found");
           }
         } else {
+          console.error("Failed to fetch invoices:", data);
           setError("Failed to fetch invoice");
         }
       })
-      .catch(() => setError("Failed to fetch invoice"))
+      .catch((error) => {
+        console.error("Error fetching invoices:", error);
+        setError("Failed to fetch invoice");
+      })
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [decodedId]);
 
   const handleDelete = async () => {
     if (!window.confirm("Are you sure you want to delete this invoice?"))
@@ -123,26 +121,30 @@ export default function InvoiceDetailPage() {
     setDeleteLoading(true);
     setDeleteError(null);
     try {
-      console.log("Deleting invoice:", id);
-      const res = await fetch(`/api/invoices/${id}`, { method: "DELETE" });
+      console.log("Deleting invoice:", decodedId);
+      const res = await fetch(`/api/invoices/${decodedId}`, {
+        method: "DELETE",
+      });
       const data = await res.json();
       console.log("Delete response:", data);
       if (data.success) {
-        toast.success("Invoice deleted successfully!");
-        router.push("/");
+        toast.success("✅ Invoice deleted successfully!");
+        setTimeout(() => {
+          router.push("/");
+        }, 1500);
       } else {
         console.error("Delete failed:", data);
         setDeleteError(
-          `Failed to delete invoice: ${data.error || "Unknown error"}`
+          `❌ Failed to delete invoice: ${data.error || "Unknown error"}`
         );
         toast.error(
-          `Failed to delete invoice: ${data.error || "Unknown error"}`
+          `❌ Failed to delete invoice: ${data.error || "Unknown error"}`
         );
       }
     } catch (error) {
       console.error("Delete error:", error);
-      setDeleteError("Failed to delete invoice: Network error");
-      toast.error("Failed to delete invoice: Network error");
+      setDeleteError("❌ Failed to delete invoice: Network error");
+      toast.error("❌ Failed to delete invoice: Network error");
     } finally {
       setDeleteLoading(false);
     }
@@ -216,7 +218,7 @@ export default function InvoiceDetailPage() {
     setEditLoading(true);
     setEditError(null);
     try {
-      const res = await fetch(`/api/invoices/${id}`, {
+      const res = await fetch(`/api/invoices/${decodedId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -230,52 +232,209 @@ export default function InvoiceDetailPage() {
       if (data.success) {
         setInvoice(data.invoice);
         setEditMode(false);
-        toast.success("Invoice updated!");
+        toast.success("✅ Invoice updated successfully!");
       } else {
-        setEditError("Failed to update invoice.");
-        toast.error("Failed to update invoice.");
+        setEditError(
+          `❌ Failed to update invoice: ${data.error || "Unknown error"}`
+        );
+        toast.error(
+          `❌ Failed to update invoice: ${data.error || "Unknown error"}`
+        );
       }
-    } catch {
-      setEditError("Failed to update invoice.");
-      toast.error("Failed to update invoice.");
+    } catch (error) {
+      console.error("Edit error:", error);
+      setEditError("❌ Failed to update invoice: Network error");
+      toast.error("❌ Failed to update invoice: Network error");
     } finally {
       setEditLoading(false);
     }
   };
 
   const handlePrint = () => {
-    window.print();
-  };
+    if (!invoice) return;
 
-  const handleDownloadPDF = async () => {
-    if (!invoiceRef.current) return;
-    // Load html2pdf.js via CDN jika belum ada
-    if (!window.html2pdf) {
-      await new Promise<void>((resolve) => {
-        const script = document.createElement("script");
-        script.src =
-          "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js";
-        script.onload = () => resolve();
-        document.body.appendChild(script);
-      });
+    const printWindow = window.open("", "_blank");
+    if (printWindow) {
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Invoice ${formatInvoiceNumber(invoice.id)}</title>
+            <style>
+              body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+              .invoice-container { max-width: 800px; margin: 0 auto; }
+              .header { display: flex; justify-content: space-between; margin-bottom: 30px; border-bottom: 2px solid #0066cc; padding-bottom: 20px; }
+              .invoice-title { font-size: 32px; font-weight: bold; color: #0066cc; margin-bottom: 10px; }
+              .invoice-info { font-size: 14px; margin-bottom: 5px; color: #333; }
+              .company-info { text-align: right; }
+              .company-name { font-size: 24px; font-weight: bold; color: #0066cc; margin-bottom: 5px; }
+              .bill-to { margin: 30px 0; padding: 20px; background: #f5f5f5; border-radius: 10px; }
+              .bill-to h3 { margin: 0 0 15px 0; color: #333; font-size: 16px; }
+              .client-name { font-size: 18px; font-weight: bold; color: #000; }
+              .client-email { color: #666; font-size: 14px; }
+              table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 12px; }
+              th { padding: 12px; text-align: left; font-weight: bold; color: #333; border-bottom: 2px solid #ccc; background: #e0e0e0; }
+              td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+              .text-center { text-align: center; }
+              .text-right { text-align: right; }
+              .font-bold { font-weight: bold; }
+              .total-section { text-align: right; margin: 20px 0; padding: 20px; background: #e6f3ff; border-radius: 10px; }
+              .subtotal { font-size: 14px; margin-bottom: 5px; color: #333; }
+              .total { font-size: 24px; font-weight: bold; color: #0066cc; }
+              .payment-info { display: flex; justify-content: space-between; margin: 30px 0; padding: 20px; background: #f0f8ff; border-radius: 10px; }
+              .payment-section h4 { margin: 0 0 10px 0; font-size: 16px; color: #333; }
+              .payment-section div { font-size: 14px; margin-bottom: 2px; color: #333; }
+              .footer { text-align: center; margin-top: 40px; padding: 20px; background: #0066cc; color: #fff; border-radius: 10px; }
+              .footer-title { font-size: 20px; margin-bottom: 10px; }
+              .footer-text { font-size: 14px; }
+              @media print { body { margin: 0; } }
+            </style>
+          </head>
+          <body>
+            <div class="invoice-container">
+              <div class="header">
+                <div>
+                  <div class="invoice-title">INVOICE</div>
+                  <div class="invoice-info">Invoice Number: ${formatInvoiceNumber(
+                    invoice.id
+                  )}</div>
+                  <div class="invoice-info">Date: ${formatDate(
+                    invoice.client?.createdAt
+                  )}</div>
+                  <div class="invoice-info">Due Date: ${formatDate(
+                    invoice.client?.dueDate
+                  )}</div>
+                </div>
+                <div class="company-info">
+                  <div class="company-name">PT. Elektronik Indonesia</div>
+                  <div class="invoice-info">Jl. Pakansari 33</div>
+                  <div class="invoice-info">Cibinong</div>
+                  <div class="invoice-info">Indonesia</div>
+                  <div class="invoice-info">hello@elektronikindo.com</div>
+                </div>
+              </div>
+              
+              <div class="bill-to">
+                <h3>Bill To:</h3>
+                <div class="client-name">${invoice.client?.name || "N/A"}</div>
+                <div class="client-email">${
+                  invoice.client?.email || "N/A"
+                }</div>
+              </div>
+              
+              <table>
+                <thead>
+                  <tr>
+                    <th>ITEM</th>
+                    <th class="text-center">QTY</th>
+                    <th class="text-right">PRICE</th>
+                    <th class="text-right">TOTAL</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${
+                    invoice.items
+                      ?.map(
+                        (item: InvoiceItem) => `
+                    <tr>
+                      <td>${item.name || "N/A"}</td>
+                      <td class="text-center">${item.quantity || 0}</td>
+                      <td class="text-right">Rp ${(
+                        item.price || 0
+                      ).toLocaleString("id-ID")}</td>
+                      <td class="text-right font-bold">Rp ${(
+                        (item.quantity || 0) * (item.price || 0)
+                      ).toLocaleString("id-ID")}</td>
+                    </tr>
+                  `
+                      )
+                      .join("") ||
+                    '<tr><td colspan="4" class="text-center" style="padding: 20px; color: #666;">No items</td></tr>'
+                  }
+                </tbody>
+              </table>
+              
+              <div class="total-section">
+                <div class="subtotal">Subtotal: Rp ${(
+                  invoice.total || 0
+                ).toLocaleString("id-ID")}</div>
+                <div class="total">Total: Rp ${(
+                  invoice.total || 0
+                ).toLocaleString("id-ID")}</div>
+              </div>
+              
+              <div class="payment-info">
+                <div class="payment-section">
+                  <h4>🏦 Bank Transfer:</h4>
+                  <div>Bank: BCA</div>
+                  <div>Account: 321098756</div>
+                  <div>Name: PT. Elektronik Indonesia</div>
+                </div>
+                <div class="payment-section">
+                  <h4>💳 Payment Details:</h4>
+                  <div>Due Date: ${formatDate(invoice.client?.dueDate)}</div>
+                  <div>Amount: Rp ${(invoice.total || 0).toLocaleString(
+                    "id-ID"
+                  )}</div>
+                </div>
+              </div>
+              
+              <div class="footer">
+                <div class="footer-title">Thank you for your business!</div>
+                <div class="footer-text">For any questions, please contact us at hello@elektronikindo.com</div>
+              </div>
+            </div>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.focus();
+      printWindow.print();
+      printWindow.close();
     }
-    window.html2pdf(invoiceRef.current, {
-      margin: 0.5,
-      filename: `${invoice?.id}.pdf`,
-      html2canvas: { scale: 2 },
-      jsPDF: { unit: "in", format: "a4", orientation: "portrait" },
-    });
   };
 
   const handleSendEmail = async () => {
+    if (!invoice) return;
+
     setEmailLoading(true);
-    await new Promise((res) => setTimeout(res, 1200));
-    setEmailLoading(false);
-    toast.success(
-      "Invoice sent to " +
-        (invoice?.client?.email || "client email") +
-        " (simulasi)"
-    );
+    try {
+      const response = await fetch("/api/send-email", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          to: invoice.client?.email,
+          subject: `Invoice ${formatInvoiceNumber(
+            invoice.id
+          )} - PT. Elektronik Indonesia`,
+          invoiceId: invoice.id,
+          invoiceData: invoice,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast.success(
+          `✅ Invoice sent successfully to ${invoice.client?.email}!`,
+          { duration: 4000 }
+        );
+      } else {
+        toast.error(
+          `❌ Failed to send email: ${data.error || "Unknown error"}`,
+          { duration: 4000 }
+        );
+      }
+    } catch (error) {
+      console.error("Email sending error:", error);
+      toast.error("❌ Failed to send email. Please try again.", {
+        duration: 4000,
+      });
+    } finally {
+      setEmailLoading(false);
+    }
   };
 
   if (loading)
@@ -289,349 +448,290 @@ export default function InvoiceDetailPage() {
   if (!invoice) return null;
 
   return (
-    <div className="min-h-screen bg-gray-50 py-10 px-2 sm:px-4 flex flex-col items-center font-sans">
-      {/* Top Bar */}
-      <div className="w-full max-w-4xl flex flex-col sm:flex-row items-center gap-2 mb-4 px-1 sm:px-0">
-        <Link
-          href="/"
-          className="inline-flex items-center gap-2 text-gray-600 hover:text-blue-700 font-medium"
-        >
-          <span className="text-xl">←</span> Back to Dashboard
-        </Link>
-        <div className="flex-1 text-center text-2xl font-bold text-blue-900 flex items-center justify-center gap-2">
-          <span className="bg-blue-600 rounded-full p-2 text-white text-2xl">
-            📄
-          </span>
-          {formatInvoiceNumber(invoice.id)}
-        </div>
-        <div className="flex gap-2">
-          <span
-            className={`px-3 py-1 rounded text-xs font-semibold ${
-              invoice.status === "paid"
-                ? "bg-green-100 text-green-700"
-                : invoice.status === "overdue"
-                ? "bg-red-100 text-red-700"
-                : "bg-yellow-100 text-yellow-700"
-            }`}
-          >
-            {invoice.status
-              ? invoice.status.charAt(0).toUpperCase() + invoice.status.slice(1)
-              : "-"}
-          </span>
-        </div>
-      </div>
-      {/* Action Bar */}
-      <div className="w-full max-w-4xl flex flex-col sm:flex-row items-center justify-between mb-4 gap-2 px-1 sm:px-0">
-        <div className="text-gray-500 text-sm">
-          Created: {formatDate(invoice.client?.createdAt)}
-        </div>
-        <div className="flex flex-wrap gap-2 justify-end w-full sm:w-auto">
-          <button
-            onClick={handlePrint}
-            className="px-3 py-1 rounded border text-gray-700 w-full sm:w-auto"
-          >
-            Print
-          </button>
-          <button
-            onClick={handleDownloadPDF}
-            className="px-3 py-1 rounded border text-gray-700 w-full sm:w-auto"
-          >
-            Download PDF
-          </button>
-          <button
-            onClick={handleSendEmail}
-            disabled={emailLoading}
-            className="px-3 py-1 rounded bg-green-600 text-white w-full sm:w-auto"
-          >
-            {emailLoading ? "Sending..." : "Send Email"}
-          </button>
-          <button
-            onClick={handleDelete}
-            disabled={deleteLoading}
-            className="px-3 py-1 rounded bg-red-600 text-white font-semibold w-full sm:w-auto"
-          >
-            {deleteLoading ? "Deleting..." : "Delete"}
-          </button>
-          <button
-            onClick={startEdit}
-            className="px-3 py-1 rounded bg-blue-600 text-white font-semibold w-full sm:w-auto"
-          >
-            Edit
-          </button>
-        </div>
-      </div>
-      {deleteError && (
-        <div className="text-red-500 text-center mb-4">{deleteError}</div>
-      )}
-      {editMode && (
-        <form
-          onSubmit={handleEditSubmit}
-          className="w-full max-w-4xl bg-blue-50 rounded-lg p-4 sm:p-6 mb-6"
-        >
-          <div className="font-semibold mb-2">Edit Invoice</div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <input
-              className="border rounded px-3 py-2"
-              placeholder="Client Name"
-              value={editData!.client.name}
-              onChange={(e) => handleEditChange("name", e.target.value)}
-            />
-            <input
-              className="border rounded px-3 py-2"
-              placeholder="Client Email"
-              value={editData!.client.email}
-              onChange={(e) => handleEditChange("email", e.target.value)}
-            />
-            <input
-              className="border rounded px-3 py-2"
-              placeholder="Due Date"
-              type="date"
-              value={editData!.client.dueDate}
-              onChange={(e) => handleEditChange("dueDate", e.target.value)}
-            />
-          </div>
-          {(editErrors.name || editErrors.email || editErrors.dueDate) && (
-            <div className="text-red-500 text-sm mb-2">
-              {[editErrors.name, editErrors.email, editErrors.dueDate]
-                .filter(Boolean)
-                .join(" | ")}
-            </div>
-          )}
-          <div className="mb-4">
-            <select
-              className="border rounded px-3 py-2"
-              value={editData!.status}
-              onChange={(e) => handleEditChange("status", e.target.value)}
-            >
-              <option value="paid">Paid</option>
-              <option value="unpaid">Unpaid</option>
-              <option value="overdue">Overdue</option>
-            </select>
-          </div>
-          <div className="mb-4">
-            <div className="font-semibold mb-2">Invoice Items</div>
-            {editData!.items.map((item, idx) => (
-              <div
-                key={idx}
-                className="grid grid-cols-1 md:grid-cols-5 gap-2 mb-2 items-center"
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-50 py-8">
+      <div className="container mx-auto">
+        {/* Top Bar */}
+        <div className="w-full max-w-6xl mx-auto px-4 mb-6">
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-6">
+            <div className="flex flex-col lg:flex-row items-center justify-between gap-4">
+              <Link
+                href="/"
+                className="inline-flex items-center gap-3 text-gray-600 hover:text-blue-700 font-medium transition-colors duration-300"
               >
-                <input
-                  className="border rounded px-2 py-1"
-                  placeholder="Item Name"
-                  value={item.name}
-                  onChange={(e) =>
-                    handleEditItemChange(idx, "name", e.target.value)
-                  }
-                />
-                <input
-                  className="border rounded px-2 py-1"
-                  placeholder="Quantity"
-                  type="number"
-                  min={1}
-                  value={item.quantity}
-                  onChange={(e) =>
-                    handleEditItemChange(idx, "quantity", e.target.value)
-                  }
-                />
-                <input
-                  className="border rounded px-2 py-1"
-                  placeholder="Price (IDR)"
-                  type="number"
-                  min={0}
-                  value={item.price}
-                  onChange={(e) =>
-                    handleEditItemChange(idx, "price", e.target.value)
-                  }
-                />
-                <div className="text-green-700 font-bold">
-                  Rp {(item.quantity * item.price).toLocaleString("id-ID")}
+                <span className="text-2xl">←</span>
+                <span>Back to Dashboard</span>
+              </Link>
+
+              <div className="flex items-center gap-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                    {formatInvoiceNumber(invoice.id)}
+                  </div>
+                  <div className="text-sm text-gray-500">Invoice Number</div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => handleRemoveEditItem(idx)}
-                  className="text-red-500 hover:text-red-700 font-bold text-lg px-2"
+
+                <div
+                  className={`px-4 py-2 rounded-full text-sm font-semibold shadow-lg ${
+                    invoice.status === "paid"
+                      ? "bg-green-100 text-green-700 border border-green-200"
+                      : invoice.status === "overdue"
+                      ? "bg-red-100 text-red-700 border border-red-200"
+                      : "bg-yellow-100 text-yellow-700 border border-yellow-200"
+                  }`}
                 >
-                  ×
+                  {invoice.status
+                    ? invoice.status.charAt(0).toUpperCase() +
+                      invoice.status.slice(1)
+                    : "-"}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Action Bar */}
+        <div className="w-full max-w-6xl mx-auto px-4 mb-6">
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-6">
+            <div className="flex flex-col lg:flex-row items-center justify-between gap-4">
+              <div className="text-gray-600 text-sm">
+                <span className="font-semibold">Created:</span>{" "}
+                {formatDate(invoice.client?.createdAt)}
+              </div>
+
+              <div className="flex flex-wrap gap-3 justify-center lg:justify-end">
+                <button
+                  onClick={handlePrint}
+                  className="px-4 py-2 rounded-xl border-2 border-gray-300 bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-all duration-300 transform hover:scale-105 shadow-lg"
+                >
+                  🖨️ Print
+                </button>
+                <button
+                  onClick={handleSendEmail}
+                  disabled={emailLoading}
+                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:shadow-xl transition-all duration-300 transform hover:scale-105 shadow-lg"
+                >
+                  {emailLoading ? "📧 Sending..." : "📧 Send Email"}
+                </button>
+                <button
+                  onClick={startEdit}
+                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 text-white hover:shadow-xl transition-all duration-300 transform hover:scale-105 shadow-lg font-semibold"
+                >
+                  ✏️ Edit
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={deleteLoading}
+                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-red-500 to-pink-600 text-white hover:shadow-xl transition-all duration-300 transform hover:scale-105 shadow-lg font-semibold"
+                >
+                  {deleteLoading ? "🗑️ Deleting..." : "🗑️ Delete"}
                 </button>
               </div>
-            ))}
-            {editErrors.items && (
-              <div className="text-red-500 text-xs mb-2">
-                {editErrors.items}
-              </div>
-            )}
-            {editData!.items.map((item, idx) => (
-              <div key={idx} className="text-red-500 text-xs">
-                {[
-                  editErrors[`item-name-${idx}`],
-                  editErrors[`item-qty-${idx}`],
-                  editErrors[`item-price-${idx}`],
-                ]
-                  .filter(Boolean)
-                  .join(" | ")}
-              </div>
-            ))}
-            <button
-              type="button"
-              onClick={handleAddEditItem}
-              className="mt-2 px-3 py-1 rounded bg-green-600 text-white font-semibold"
-            >
-              + Add Item
-            </button>
-          </div>
-          <div className="mb-4 flex justify-end">
-            <div className="bg-blue-100 rounded-lg p-3 min-w-[180px] text-right">
-              <div className="text-gray-500 text-sm mb-1">Invoice Total:</div>
-              <div className="text-xl font-bold text-blue-700">
-                Rp {editTotal.toLocaleString("id-ID")}
-              </div>
-            </div>
-          </div>
-          {editError && (
-            <div className="text-red-500 text-sm mb-2">{editError}</div>
-          )}
-          <div className="flex gap-2 justify-end flex-col sm:flex-row">
-            <button
-              type="button"
-              onClick={() => setEditMode(false)}
-              className="px-4 py-2 rounded border w-full sm:w-auto"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={editLoading || !isEditValid}
-              className="px-4 py-2 rounded bg-blue-600 text-white font-semibold w-full sm:w-auto"
-            >
-              {editLoading ? "Saving..." : "Save"}
-            </button>
-          </div>
-        </form>
-      )}
-      <div
-        ref={invoiceRef}
-        className="w-full max-w-4xl bg-white rounded-xl shadow-lg p-4 sm:p-8 mb-8"
-      >
-        {/* Header */}
-        <div className="flex flex-col md:flex-row md:justify-between mb-6 gap-4">
-          <div>
-            <div className="text-2xl font-bold text-white bg-gradient-to-r from-blue-700 to-blue-400 px-4 py-2 rounded-t-lg mb-2">
-              INVOICE
-            </div>
-            <div className="text-sm text-gray-700">
-              Invoice Number: {formatInvoiceNumber(invoice.id)}
-            </div>
-            <div className="text-sm text-gray-700">
-              Date: {formatDate(invoice.client?.createdAt)}
-            </div>
-            <div className="text-sm text-gray-700">
-              Due Date: {formatDate(invoice.client?.dueDate)}
-            </div>
-          </div>
-          <div className="text-right">
-            <div className="font-bold text-blue-900">Your Company</div>
-            <div className="text-sm text-gray-700">
-              Jl. Contoh No. 123
-              <br />
-              Jakarta 12345
-              <br />
-              Indonesia
-            </div>
-            <div className="text-sm text-blue-700 mt-1">
-              hello@yourcompany.com
             </div>
           </div>
         </div>
-        {/* Bill To */}
-        <div className="mb-6">
-          <div className="font-semibold text-gray-700 mb-2 flex items-center gap-2">
-            <span>👤</span> Bill To:
-          </div>
-          <div className="bg-gray-50 rounded-lg p-4 flex flex-col sm:flex-row items-center gap-4">
-            <span className="bg-blue-100 text-blue-600 rounded-full p-2 text-xl">
-              👤
-            </span>
-            <div>
-              <div className="font-bold text-blue-900">
-                {invoice.client?.name}
-              </div>
-              <div className="text-gray-500 text-sm">
-                {invoice.client?.email}
-              </div>
+
+        {deleteError && (
+          <div className="w-full max-w-6xl mx-auto px-4 mb-6">
+            <div className="bg-red-100 border border-red-200 rounded-2xl p-4 text-center text-red-700 font-semibold shadow-lg">
+              {deleteError}
             </div>
           </div>
+        )}
+
+        {editMode && (
+          <div className="w-full max-w-6xl mx-auto px-4 mb-6">
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-6">
+              <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-3">
+                <span className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+                  <span className="text-white text-sm">✏️</span>
+                </span>
+                Edit Invoice
+              </h2>
+
+              <form onSubmit={handleEditSubmit}>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                  <input
+                    className="border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-blue-500 focus:outline-none transition-colors duration-300"
+                    placeholder="Client Name"
+                    value={editData!.client.name}
+                    onChange={(e) => handleEditChange("name", e.target.value)}
+                  />
+                  <input
+                    className="border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-blue-500 focus:outline-none transition-colors duration-300"
+                    placeholder="Client Email"
+                    value={editData!.client.email}
+                    onChange={(e) => handleEditChange("email", e.target.value)}
+                  />
+                  <input
+                    className="border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-blue-500 focus:outline-none transition-colors duration-300"
+                    placeholder="Due Date"
+                    type="date"
+                    value={editData!.client.dueDate}
+                    onChange={(e) =>
+                      handleEditChange("dueDate", e.target.value)
+                    }
+                  />
+                </div>
+
+                {(editErrors.name ||
+                  editErrors.email ||
+                  editErrors.dueDate) && (
+                  <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
+                    {[editErrors.name, editErrors.email, editErrors.dueDate]
+                      .filter(Boolean)
+                      .join(" • ")}
+                  </div>
+                )}
+
+                <div className="mb-6">
+                  <select
+                    className="border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-blue-500 focus:outline-none transition-colors duration-300 w-full md:w-auto"
+                    value={editData!.status}
+                    onChange={(e) => handleEditChange("status", e.target.value)}
+                  >
+                    <option value="paid">Paid</option>
+                    <option value="unpaid">Unpaid</option>
+                    <option value="overdue">Overdue</option>
+                  </select>
+                </div>
+
+                <div className="mb-6">
+                  <div className="font-semibold mb-4 text-gray-800">
+                    Invoice Items
+                  </div>
+                  {editData!.items.map((item, idx) => (
+                    <div
+                      key={idx}
+                      className="grid grid-cols-1 md:grid-cols-5 gap-3 mb-3 items-center"
+                    >
+                      <input
+                        className="border-2 border-gray-200 rounded-xl px-3 py-2 focus:border-blue-500 focus:outline-none transition-colors duration-300"
+                        placeholder="Item Name"
+                        value={item.name}
+                        onChange={(e) =>
+                          handleEditItemChange(idx, "name", e.target.value)
+                        }
+                      />
+                      <input
+                        className="border-2 border-gray-200 rounded-xl px-3 py-2 focus:border-blue-500 focus:outline-none transition-colors duration-300"
+                        placeholder="Quantity"
+                        type="number"
+                        min={1}
+                        value={item.quantity}
+                        onChange={(e) =>
+                          handleEditItemChange(idx, "quantity", e.target.value)
+                        }
+                      />
+                      <input
+                        className="border-2 border-gray-200 rounded-xl px-3 py-2 focus:border-blue-500 focus:outline-none transition-colors duration-300"
+                        placeholder="Price (IDR)"
+                        type="number"
+                        min={0}
+                        value={item.price}
+                        onChange={(e) =>
+                          handleEditItemChange(idx, "price", e.target.value)
+                        }
+                      />
+                      <div className="text-green-700 font-bold text-center">
+                        Rp{" "}
+                        {(item.quantity * item.price).toLocaleString("id-ID")}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveEditItem(idx)}
+                        className="text-red-500 hover:text-red-700 font-bold text-xl px-3 py-2 hover:bg-red-50 rounded-lg transition-colors duration-300"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+
+                  {editErrors.items && (
+                    <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded-xl text-red-600 text-xs">
+                      {editErrors.items}
+                    </div>
+                  )}
+
+                  {editData!.items.map((item, idx) => (
+                    <div
+                      key={idx}
+                      className="mb-2 p-2 bg-red-50 border border-red-200 rounded-lg text-red-600 text-xs"
+                    >
+                      {[
+                        editErrors[`item-name-${idx}`],
+                        editErrors[`item-qty-${idx}`],
+                        editErrors[`item-price-${idx}`],
+                      ]
+                        .filter(Boolean)
+                        .join(" • ")}
+                    </div>
+                  ))}
+
+                  <button
+                    type="button"
+                    onClick={handleAddEditItem}
+                    className="mt-3 px-4 py-2 rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 text-white font-semibold hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+                  >
+                    + Add Item
+                  </button>
+                </div>
+
+                <div className="mb-6 flex justify-end">
+                  <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl p-4 min-w-[200px] text-right border border-blue-200">
+                    <div className="text-gray-600 text-sm mb-1">
+                      Invoice Total:
+                    </div>
+                    <div className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                      Rp {editTotal.toLocaleString("id-ID")}
+                    </div>
+                  </div>
+                </div>
+
+                {editError && (
+                  <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
+                    {editError}
+                  </div>
+                )}
+
+                <div className="flex gap-4 justify-end flex-col sm:flex-row">
+                  <button
+                    type="button"
+                    onClick={() => setEditMode(false)}
+                    className="px-6 py-3 rounded-xl border-2 border-gray-300 bg-white text-gray-700 font-semibold hover:bg-gray-50 hover:border-gray-400 transition-all duration-300 transform hover:scale-105 shadow-lg"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={editLoading || !isEditValid}
+                    className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 shadow-lg ${
+                      editLoading || !isEditValid
+                        ? "bg-gray-300 text-gray-400 cursor-not-allowed"
+                        : "bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:shadow-xl"
+                    }`}
+                  >
+                    {editLoading ? "💾 Saving..." : "💾 Save Changes"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Due Date Info */}
+        <div className="w-full max-w-6xl mx-auto px-4 mb-6">
+          <DueDateInfo
+            dueDate={invoice.client?.dueDate || ""}
+            status={invoice.status || "unpaid"}
+            total={invoice.total || 0}
+          />
         </div>
-        {/* Items Table */}
-        <div className="mb-6 overflow-x-auto">
-          <div className="font-semibold text-gray-700 mb-2">Invoice Items</div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm border rounded-lg min-w-[500px]">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="px-3 py-2 text-left">ITEM</th>
-                  <th className="px-3 py-2 text-center">QTY</th>
-                  <th className="px-3 py-2 text-right">PRICE</th>
-                  <th className="px-3 py-2 text-right">TOTAL</th>
-                </tr>
-              </thead>
-              <tbody>
-                {invoice.items?.map((item: InvoiceItem, idx: number) => (
-                  <tr key={idx} className="border-t">
-                    <td className="px-3 py-2">{item.name}</td>
-                    <td className="px-3 py-2 text-center">{item.quantity}</td>
-                    <td className="px-3 py-2 text-right">
-                      Rp {item.price.toLocaleString("id-ID")}
-                    </td>
-                    <td className="px-3 py-2 text-right font-bold">
-                      Rp {(item.quantity * item.price).toLocaleString("id-ID")}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+
+        {/* Invoice Content */}
+        <div ref={invoiceRef} className="w-full max-w-6xl mx-auto px-4 mb-8">
+          <div className="bg-white/90 backdrop-blur-sm rounded-3xl shadow-2xl border border-white/20">
+            <InvoiceContent invoice={invoice} />
           </div>
-          <div className="flex justify-end mt-4">
-            <div className="bg-blue-50 rounded-lg p-4 min-w-[180px]">
-              <div className="flex justify-between text-gray-700 mb-1">
-                <span>Subtotal:</span>
-                <span>Rp {invoice.total?.toLocaleString("id-ID")}</span>
-              </div>
-              <div className="flex justify-between font-bold text-blue-700 text-lg">
-                <span>Total:</span>
-                <span>Rp {invoice.total?.toLocaleString("id-ID")}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-        {/* Payment Info */}
-        <div className="bg-blue-50 rounded-lg p-6 flex flex-col md:flex-row gap-6 mb-4">
-          <div className="flex-1">
-            <div className="font-semibold text-gray-700 mb-2">
-              Bank Transfer:
-            </div>
-            <div className="text-sm text-gray-700">Bank: BCA</div>
-            <div className="text-sm text-gray-700">Account: 1234567890</div>
-            <div className="text-sm text-gray-700">Name: Your Company</div>
-          </div>
-          <div className="flex-1">
-            <div className="font-semibold text-gray-700 mb-2">
-              Payment Details:
-            </div>
-            <div className="text-sm text-gray-700">
-              Due Date: {formatDate(invoice.client?.dueDate)}
-            </div>
-            <div className="text-sm text-gray-700">
-              Amount: Rp {invoice.total?.toLocaleString("id-ID")}
-            </div>
-          </div>
-        </div>
-        {/* Footer */}
-        <div className="mt-8 text-center bg-gradient-to-r from-blue-700 to-blue-400 text-white rounded-lg py-4 font-semibold">
-          Thank you for your business!
-          <br />
-          <span className="text-sm font-normal">
-            For any questions, please contact us at hello@yourcompany.com
-          </span>
         </div>
       </div>
     </div>
