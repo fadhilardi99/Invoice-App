@@ -3,20 +3,21 @@ import { prisma } from "@/lib/prisma";
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    console.log("Deleting invoice with ID:", params.id);
+    const { id } = await params;
+    console.log("Deleting invoice with ID:", id);
 
     // Delete invoice items first (due to foreign key constraint)
     const deletedItems = await prisma.invoiceItem.deleteMany({
-      where: { invoiceId: params.id },
+      where: { invoiceId: id },
     });
     console.log("Deleted items:", deletedItems);
 
     // Delete the invoice
     const deletedInvoice = await prisma.invoice.delete({
-      where: { id: params.id },
+      where: { id },
       include: {
         client: true,
         items: true,
@@ -52,14 +53,15 @@ export async function DELETE(
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const data = await req.json();
 
     // Update client info
     const invoice = await prisma.invoice.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: { client: true },
     });
 
@@ -82,7 +84,7 @@ export async function PUT(
 
     // Update invoice status and total
     await prisma.invoice.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         status: data.status,
         total: data.total,
@@ -91,7 +93,7 @@ export async function PUT(
 
     // Delete existing items and create new ones
     await prisma.invoiceItem.deleteMany({
-      where: { invoiceId: params.id },
+      where: { invoiceId: id },
     });
 
     if (data.items && data.items.length > 0) {
@@ -103,7 +105,7 @@ export async function PUT(
                 name: item.name,
                 quantity: item.quantity,
                 price: item.price,
-                invoiceId: params.id,
+                invoiceId: id,
               },
             })
         )
@@ -112,7 +114,7 @@ export async function PUT(
 
     // Fetch updated invoice
     const updatedInvoice = await prisma.invoice.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         client: true,
         items: true,
