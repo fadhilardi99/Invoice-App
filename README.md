@@ -252,6 +252,52 @@ SENDGRID_FROM_NAME="PT. Elektronik Indonesia"
 
 ---
 
+## 🚀 Deployment
+
+### Vercel (Recommended)
+
+1. **Connect Repository**: Connect your GitHub repository to Vercel
+2. **Environment Variables**: Add all environment variables in Vercel dashboard:
+   - `DATABASE_URL`
+   - `DIRECT_URL`
+   - `SENDGRID_API_KEY` (optional)
+   - `SENDGRID_FROM_EMAIL` (optional)
+   - `SENDGRID_FROM_NAME` (optional)
+3. **Build Settings**: The project includes `vercel.json` with correct build configuration
+4. **Deploy**: Vercel will automatically deploy on push to main branch
+
+### Build Configuration
+
+The project includes:
+
+- `vercel.json` with proper build commands
+- `package.json` with `prisma generate` in build script
+- API routes configured for dynamic rendering
+
+### Troubleshooting Deployment
+
+#### Prisma Client Error
+
+If you see `PrismaClientInitializationError` on Vercel:
+
+- ✅ **Fixed**: Build script now includes `prisma generate`
+- ✅ **Fixed**: `vercel.json` configured correctly
+- ✅ **Fixed**: API routes use `export const dynamic = 'force-dynamic'`
+
+#### Environment Variables
+
+- Ensure all required variables are set in Vercel dashboard
+- Check that database URL is accessible from Vercel
+- Verify SendGrid API key if using email functionality
+
+#### Database Connection
+
+- Ensure Supabase allows connections from Vercel IPs
+- Check that database is not paused (Supabase free tier)
+- Verify connection string format
+
+---
+
 ## 📁 Project Structure
 
 ```
@@ -281,75 +327,13 @@ invoice_app/
 └── public/                   # Static assets
 ```
 
-## 🗄️ Database Schema
-
-### Invoice
-
-- `id`: String (Custom format: "INVOICE-CLIENTNAME-TIMESTAMP")
-- `status`: String ("paid", "unpaid", "overdue")
-- `total`: Int
-- `createdAt`: DateTime
-- `clientId`: String (Foreign key to ClientInfo)
-
-### ClientInfo
-
-- `id`: String (UUID)
-- `name`: String
-- `email`: String
-- `dueDate`: DateTime
-- `createdAt`: DateTime
-
-### InvoiceItem
-
-- `id`: String (UUID)
-- `name`: String
-- `quantity`: Int
-- `price`: Int
-- `invoiceId`: String (Foreign key to Invoice)
-
-## 🔌 API Endpoints
-
-### Invoices
-
-- `GET /api/invoices` - Fetch all invoices
-- `POST /api/invoices` - Create new invoice
-- `PUT /api/invoices/[id]` - Update invoice
-- `DELETE /api/invoices/[id]` - Delete invoice
-
-### Email
-
-- `POST /api/send-email` - Send invoice email via SendGrid
-
-## 🎨 UI Components
-
-### Dashboard
-
-- Header with create button
-- Statistics cards (Total Revenue, Total Invoices, Paid, Overdue)
-- Search and filter functionality
-- Invoice list with actions
-
-### Create Invoice
-
-- Client information form
-- Dynamic invoice items form
-- Real-time validation
-- Total calculation
-
-### Invoice Detail
-
-- Complete invoice layout
-- Edit functionality
-- Print and PDF export
-- Email simulation
-
 ## 🔧 Development
 
 ### Available Scripts
 
 ```bash
 npm run dev          # Start development server
-npm run build        # Build for production
+npm run build        # Build for production (includes prisma generate)
 npm run start        # Start production server
 npm run lint         # Run ESLint
 ```
@@ -363,13 +347,7 @@ npx prisma studio    # Open database GUI
 npx prisma db push   # Push schema changes
 ```
 
-## 🚀 Deployment
-
-### Vercel (Recommended)
-
-1. Connect your GitHub repository to Vercel
-2. Add environment variables in Vercel dashboard
-3. Deploy automatically on push to main branch
+## 🚀 Production Deployment
 
 ### Environment Variables for Production
 
@@ -380,57 +358,19 @@ DIRECT_URL="your-production-direct-url"
 # SendGrid (Optional)
 SENDGRID_API_KEY="your-production-sendgrid-api-key"
 SENDGRID_FROM_EMAIL="noreply@yourdomain.com"
-SENDGRID_FROM_NAME="PT. Elektronik Indonesia"
 ```
 
-## 🐛 Troubleshooting
+### Build Process
 
-### Common Issues
+The build process automatically:
 
-1. **Database Connection Error**
+1. Generates Prisma Client (`prisma generate`)
+2. Builds Next.js application (`next build`)
+3. Optimizes for production
 
-   - Check your `.env` file has correct `DATABASE_URL`
-   - Ensure database is accessible
-   - Run `npx prisma db push` to sync schema
+### Monitoring
 
-2. **Prisma Client Not Found**
-
-   - Run `npx prisma generate`
-   - Restart development server
-
-3. **Migration Failed**
-
-   - Run `npx prisma migrate reset` to reset database
-   - Check for schema conflicts
-
-4. **Create Invoice Fails**
-   - Check browser console for detailed error
-   - Ensure all required fields are filled
-   - Verify database connection
-
-### Debug Mode
-
-Enable detailed logging by checking browser console and server logs for error messages.
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- Next.js team for the amazing framework
-- Prisma team for the excellent ORM
-- Tailwind CSS for the utility-first styling
-- Supabase for the database hosting solution
-
----
-
-**Made with ❤️ using Next.js, TypeScript, and Tailwind CSS**
+- Check Vercel deployment logs for any build errors
+- Monitor database connections and performance
+- Track email delivery rates (if using SendGrid)
+- Monitor application performance and errors
